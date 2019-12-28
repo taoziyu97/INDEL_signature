@@ -19,7 +19,7 @@ data<-cbind(tcga_luad_mc3@data[,1],Entrez_Gene_Id,
 ###### Part1. 挑出mutation数据库中INDEL部分
 data_INDEL <- data[Variant_Type %in% c("INS", "DEL")]
 # 取第5行的数据进行test
-data_sample <- data_INDEL[c(146),]
+data_sample <- data_INDEL[c(32),]
 indel_types = c("1:Del:C:0", "1:Del:C:1", "1:Del:C:2", "1:Del:C:3", "1:Del:C:4", "1:Del:C:5",
                 "1:Del:T:0", "1:Del:T:1", "1:Del:T:2", "1:Del:T:3", "1:Del:T:4", "1:Del:T:5",
                 "1:Ins:C:0", "1:Ins:C:1", "1:Ins:C:2", "1:Ins:C:3", "1:Ins:C:4", "1:Ins:C:5",
@@ -110,6 +110,22 @@ if(ref != '-' & mut != '-' & (variant_type == 'DEL' | variant_type == 'INS')){
       break
     }
   }
+  for (i in seq(1,50,1)){
+    if (substr(repeat_ID_type,round(50/(nchar(ID_type)))+2-i,round(50/(nchar(ID_type)))+2-i) == as.character(substr(upstream,round(50/(nchar(ID_type)))+2-i,round(50/(nchar(ID_type)))+2-i))){
+      up_number <- up_number+1
+      match_sequence <- paste(match_sequence,substr(repeat_ID_type,round(50/(nchar(ID_type)))+2-i,round(50/(nchar(ID_type)))+2-i),sep = "")
+      next
+    }else{
+      break
+    }
+  }
+  number <- 0
+  up_number <- 0
+  if (up_number > number_down){
+    number <- up_number
+  }else if(up_number <= number_down){
+    number <- number_down
+  }
   ###### 计数以突变位点为一个单位的重复次数：real_num
   ###### 对于单个位点，虽然进行这步，但是该步骤得到的real_num不计入mutation_ID表格中，不用在意
   real_num <- 0
@@ -175,5 +191,3 @@ if(ref != '-' & mut != '-' & (variant_type == 'DEL' | variant_type == 'INS')){
   }
 }
 mutation_ID[indel_type_count > 0]
-
-
