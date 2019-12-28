@@ -1,5 +1,7 @@
 library(TCGAmutations)
 tcga_load("LUAD")
+library(BSgenome.Hsapiens.UCSC.hg19)
+library(data.table)
 str(tcga_luad_mc3, max.level = 2)
 #不需要挑出突变位点为TC之外的序列，因为INDEl处不止有1个变化，无法进行简化并做reverse这一步骤（参考SNV的96种）
 # 把MAF文件格式进行标准化使得原作者python脚本能够识别
