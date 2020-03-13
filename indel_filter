@@ -1,0 +1,72 @@
+library(stringr)
+library(dplyr)
+library(plyr)
+test_vcf <- read.table("/Users/taoziyu/shanghaitech/2019/Xulab/data/Tujia_TGS_b37.seq.vcf")
+test_gz <- read.table("/Users/taoziyu/shanghaitech/2019/Xulab/data/XSH.dip.vcf.gz")
+## PART1 Tujia_TGS_b37.seq.vcf
+# step1: filt out sv-length>1e+06 record
+test_vcf_split <- str_split_fixed(test_vcf$V8,";",14)
+test_12 <- test_vcf_split[,12]
+test_1 <- test_vcf_split[,12]
+len <- as.numeric(as.character(substring(test_12,7)))
+data <- cbind(test_vcf,len,test_1)
+data_new <- subset(data,len<1e+06)
+# step2: filt deletion
+data_del_vcf <- subset(data_new,data_new$V5 == '<DEL>')
+# step3: filt insertion
+data_ins_vcf <- subset(data_new,data_new$V5 == '<INS>')
+## PART2 XSH.dip.vcf.gz
+# 把空的替换成N，方便通过字符串个数比较来找出inserion还是delertion
+test_gz_split <- str_split_fixed(test_gz$V5,",",2)
+gz_split_V2 <- test_gz_split[,2]
+gz_split_V2[which(gz_split_V2=='')] <- "N"
+# 通过比较reference和sample位点字符串的差异，选择出deletion和insertion
+test_gz_split <- cbind(test_gz_split[,1],gz_split_V2)
+# names(test_gz_split)[1]<-c("gz_split_1")
+num_V4 <- nchar(as.character(test_gz$V4))
+# 为了能进行加减运算，cbind一下分割后的列和表格
+test_gz_new <- cbind(test_gz,test_gz_split)
+names(test_gz_new)=c("V1","V2","V3","V4","V5","V6","V7","V8","V9","V10","V11","V12")
+data_ins_gz <- subset(test_gz,
+                      nchar(as.character(test_gz_new[,11]))-
+                        nchar(as.character(test_gz_new[,4])) >= 30 |
+                        nchar(as.character(test_gz_new[,12]))-
+                        nchar(as.character(test_gz_new[,4])) >= 30
+)
+data_del_gz <- subset(test_gz_new,
+                      nchar(as.character(test_gz_new[,4]))-
+                        nchar(as.character(test_gz_new[,11])) >= 30 |
+                        nchar(as.character(test_gz_new[,4]))-
+                        nchar(as.character(test_gz_new[,12])) >= 30
+)
+# 进一步挑出具体sample
+
+## PART3 比较两个方法的insertion
+# 思路是同时满足这两个条件的sample，(data_ins_gz$V1 == data_ins_vcf$V1) & 
+# abs(as.numeric(as.character(data_ins_gz$V2)) - as.numeric(as.character(data_ins_vcf$V2)))<10
+# 将两个两个按照染色体对应关系匹配上，满足第一个条件在同一条染色体上
+data_ins <- dplyr::full_join(data_ins_vcf,data_ins_gz,by = "V1")
+# 将位置这个参数设置成50
+data_ins_match <- subset(data_ins, abs(as.numeric(as.character(data_ins$V2.x)) - 
+                                         as.numeric(as.character(data_ins$V2.y))) < 50)
+## PART4 比较两个方法的deletion
+# 思路是删除片段之间的overlap，参数设置成25
+data_del <- dplyr::full_join(data_del_gz,data_del_vcf, by = "V1")
+# 最好用gz的末端减去del的初始位置，因为gz的数据的位置靠前,
+# 增加一列gz文件的末端位置
+x1 <- nchar(as.character(data_del[,4]))-nchar(as.character(data_del[,11]))
+x2 <- nchar(as.character(data_del[,4]))-nchar(as.character(data_del[,12]))
+x3 <- cbind(x1,x2)
+# 找到del_length，得到end position
+x3$max_length<-apply(X=x3, MARGIN=1, FUN=max)
+data_del_new <- cbind(data_del,x3$max_length)
+# 得到gz_end_position
+data_del_new$gz_end_position <- as.numeric(as.character(data_del_new$V2.x))+
+  as.numeric(as.character(data_del_new$`x3$max_length`))
+# 用gz_end_position - vcf文件del的起始位点
+overlapping <- as.numeric(data_del_new$gz_end_position) - as.numeric(data_del_new$V2.y)
+percent_gz <- overlapping/(data_del_new$`x3$max_length`)
+percent_vcf <- overlapping/(data_del_new$len)
+data_del_match <- subset(data_del_new,percent_gz > 0.8 &percent_gz<1 & percent_vcf > 0.8 & percent_vcf < 1)
+# data_del_match <- subset(data_del_new,(data_del_new$gz_end_position - as.numeric(data_del_new$V2.y)) > 30)
+# xxx <- cbind(data_del_match$V2.y,data_del_match$gz_end_position)
